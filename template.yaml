@@ -38,7 +38,7 @@ Conditions:
 
 Globals:
   Function:
-    Runtime: nodejs22.x
+    Runtime: nodejs24.x
     Architectures:
       - x86_64
     MemorySize: 512
@@ -343,9 +343,9 @@ Resources:
       Artifacts:
         Type: NO_ARTIFACTS
       Environment:
-        Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/amazonlinux-x86_64-standard:7.0
+        Type: LINUX_LAMBDA_CONTAINER
+        ComputeType: BUILD_LAMBDA_2GB
+        Image: aws/codebuild/amazonlinux-x86_64-lambda-standard:nodejs24
         ImagePullCredentialsType: CODEBUILD
         EnvironmentVariables:
           - Name: API_BASE_URL
@@ -361,18 +361,10 @@ Resources:
         BuildSpec: !Sub |
           version: 0.2
           phases:
-            install:
-              runtime-versions:
-                nodejs: 22
             build:
               commands:
                 - |
                   set -e
-                  NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/index.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).find(v=>v.version.startsWith("v26.")).version))')
-                  curl -fsSLO "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
-                  curl -fsSL "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt" | grep " node-$NODE_VERSION-linux-x64.tar.xz$" | sha256sum -c -
-                  tar -xJf "node-$NODE_VERSION-linux-x64.tar.xz"
-                  export PATH="$PWD/node-$NODE_VERSION-linux-x64/bin:$PATH"
                   node --version
                   git clone --depth 1 "$REPOSITORY_URL" source
                   cd source
@@ -381,7 +373,7 @@ Resources:
                   aws s3 sync .output/public "s3://$SITE_BUCKET" --delete --cache-control "public,max-age=300"
                   if [ -d .output/public/_nuxt ]; then aws s3 cp .output/public/_nuxt/ "s3://$SITE_BUCKET/_nuxt/" --recursive --cache-control "public,max-age=31536000,immutable"; fi
                   aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths '/*'
-      TimeoutInMinutes: 30
+      TimeoutInMinutes: 15
 
   StartStaticBuildRole:
     Type: AWS::IAM::Role

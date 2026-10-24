@@ -4,7 +4,7 @@ Glover Media is a single-owner catalog for a movie and TV collection. Local deve
 
 ## Local development
 
-1. Install Node.js 26 or newer, then run `npm ci`.
+1. Install Node.js 24 or newer, then run `npm ci`.
 2. Run `npm run auth:setup` in an interactive terminal. It prints a scrypt password hash and random signing secret; it does not echo the password.
 3. Copy `.env.example` to `.env`, set `TMDB_API_KEY`, and replace the example authentication values with the generated ones. Keep `.env` private.
 4. Run `npm run db:push` and then `npm run dev`.
@@ -17,6 +17,7 @@ The local SQLite file defaults to `./data/movies.db`; set `DATABASE_URL` to use 
 - **API:** a Nuxt/Nitro Lambda behind an API Gateway HTTP API handles public catalog reads, owner login, catalog changes, and TMDB requests.
 - **Storage:** one on-demand DynamoDB table stores movie records, unique TMDB-ID mappings, login sessions, and expiring login-attempt counters.
 - **Publishing:** successful add, edit, and delete requests emit an EventBridge event. EventBridge starts CodeBuild, which reads the current public API, regenerates the homepage, collection, and movie detail pages, uploads them to S3, and invalidates CloudFront.
+- **Build cost control:** the publisher uses CodeBuild's on-demand Lambda compute (2 GiB) with a 15-minute timeout and one concurrent build. It uses the provided Node.js 24 runtime. There is no reserved or always-running build capacity; AWS bills only while each build runs. Don't enable reserved capacity or persistent build services for this project.
 - **Region:** `us-east-1`. CloudFront certificates must also be in `us-east-1`.
 
 Catalog changes are saved immediately in DynamoDB. The public static pages update after CodeBuild completes; this normally takes a few minutes. There is no live server render on public page requests.
