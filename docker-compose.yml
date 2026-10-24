@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: /app/data/movies.db
+      TMDB_API_KEY: ${TMDB_API_KEY}
+      NUXT_ARCHIVE_USERNAME: ${ARCHIVE_USERNAME:?Set ARCHIVE_USERNAME in .env}
+      NUXT_AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH:?Set AUTH_PASSWORD_HASH in .env}
+      NUXT_AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
