@@ -11,7 +11,6 @@ export default defineNuxtConfig({
     typeCheck: true,
   },
   runtimeConfig: {
-    databaseUrl: process.env.DATABASE_URL || './data/movies.db',
     tmdbApiKey: process.env.TMDB_API_KEY || '',
     archiveUsername: process.env.ARCHIVE_USERNAME || '',
     authPasswordHash: process.env.AUTH_PASSWORD_HASH || '',

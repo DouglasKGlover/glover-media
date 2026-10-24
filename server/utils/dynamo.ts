@@ -13,10 +13,6 @@ export function getDynamoTableName() {
   return tableName
 }
 
-export function isDynamoConfigured() {
-  return Boolean(useRuntimeConfig().dynamodbTableName)
-}
-
 export function getDynamoDocumentClient() {
   documentClient ??= DynamoDBDocumentClient.from(new DynamoDBClient({}))
   return documentClient

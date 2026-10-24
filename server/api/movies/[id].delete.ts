@@ -1,5 +1,5 @@
 import { deleteMovie } from '../../utils/catalog'
-import { isDynamoConfigured, publishCatalogChanged } from '../../utils/dynamo'
+import { publishCatalogChanged } from '../../utils/dynamo'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -12,6 +12,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Movie not found' })
   }
 
-  if (isDynamoConfigured()) await publishCatalogChanged()
+  await publishCatalogChanged()
   return { success: true }
 })

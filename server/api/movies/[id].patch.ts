@@ -1,7 +1,7 @@
 import { updateMovie } from '../../utils/catalog'
 import { movieFormats } from '../../../shared/types/movie'
 import type { MovieFormat } from '../../../shared/types/movie'
-import { isDynamoConfigured, publishCatalogChanged } from '../../utils/dynamo'
+import { publishCatalogChanged } from '../../utils/dynamo'
 
 interface MovieUpdateBody {
   format?: MovieFormat
@@ -95,6 +95,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Movie not found' })
   }
 
-  if (isDynamoConfigured()) await publishCatalogChanged()
+  await publishCatalogChanged()
   return movie
 })

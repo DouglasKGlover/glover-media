@@ -1,7 +1,7 @@
 import { movieFormats } from '../../../shared/types/movie'
 import type { MediaType, MovieFormat } from '../../../shared/types/movie'
 import { createMovie, DuplicateMovieError } from '../../utils/catalog'
-import { isDynamoConfigured, publishCatalogChanged } from '../../utils/dynamo'
+import { publishCatalogChanged } from '../../utils/dynamo'
 
 interface NewMovieBody {
   tmdbId: number
@@ -66,12 +66,11 @@ export default defineEventHandler(async (event) => {
 
   try {
     const movie = await createMovie(values)
-    if (isDynamoConfigured()) await publishCatalogChanged()
+    await publishCatalogChanged()
     setResponseStatus(event, 201)
     return movie
   } catch (error) {
-    if (error instanceof DuplicateMovieError
-      || (error instanceof Error && error.message.includes('movies.media_type, movies.tmdb_id'))) {
+    if (error instanceof DuplicateMovieError) {
       throw createError({ statusCode: 409, statusMessage: 'This title is already in the collection' })
     }
     throw error
