@@ -6,8 +6,12 @@ import { movieFormats } from '../../../shared/types/movie'
 interface MovieUpdateBody {
   format?: string
   edition?: string | null
-  watched?: boolean
-  rating?: number | null
+  dougWatched?: boolean
+  gilWatched?: boolean
+  dougWouldWatchAgain?: boolean
+  gilWouldWatchAgain?: boolean
+  dougRating?: number | null
+  gilRating?: number | null
   notes?: string | null
 }
 
@@ -35,17 +39,41 @@ export default defineEventHandler(async (event) => {
     }
     updates.edition = body.edition?.trim() || null
   }
-  if (body.watched !== undefined) {
-    if (typeof body.watched !== 'boolean') {
-      throw createError({ statusCode: 400, statusMessage: 'Watched must be a boolean' })
+  if (body.dougWatched !== undefined) {
+    if (typeof body.dougWatched !== 'boolean') {
+      throw createError({ statusCode: 400, statusMessage: 'Doug watched must be a boolean' })
     }
-    updates.watched = body.watched
+    updates.dougWatched = body.dougWatched
   }
-  if (body.rating !== undefined) {
-    if (body.rating !== null && (!Number.isInteger(body.rating) || body.rating < 1 || body.rating > 10)) {
-      throw createError({ statusCode: 400, statusMessage: 'Rating must be between 1 and 10' })
+  if (body.gilWatched !== undefined) {
+    if (typeof body.gilWatched !== 'boolean') {
+      throw createError({ statusCode: 400, statusMessage: 'Gil watched must be a boolean' })
     }
-    updates.rating = body.rating
+    updates.gilWatched = body.gilWatched
+  }
+  if (body.dougWouldWatchAgain !== undefined) {
+    if (typeof body.dougWouldWatchAgain !== 'boolean') {
+      throw createError({ statusCode: 400, statusMessage: 'Doug would watch again must be a boolean' })
+    }
+    updates.dougWouldWatchAgain = body.dougWouldWatchAgain
+  }
+  if (body.gilWouldWatchAgain !== undefined) {
+    if (typeof body.gilWouldWatchAgain !== 'boolean') {
+      throw createError({ statusCode: 400, statusMessage: 'Gil would watch again must be a boolean' })
+    }
+    updates.gilWouldWatchAgain = body.gilWouldWatchAgain
+  }
+  if (body.dougRating !== undefined) {
+    if (body.dougRating !== null && (!Number.isInteger(body.dougRating) || body.dougRating < 1 || body.dougRating > 10)) {
+      throw createError({ statusCode: 400, statusMessage: 'Doug rating must be between 1 and 10' })
+    }
+    updates.dougRating = body.dougRating
+  }
+  if (body.gilRating !== undefined) {
+    if (body.gilRating !== null && (!Number.isInteger(body.gilRating) || body.gilRating < 1 || body.gilRating > 10)) {
+      throw createError({ statusCode: 400, statusMessage: 'Gil rating must be between 1 and 10' })
+    }
+    updates.gilRating = body.gilRating
   }
   if (body.notes !== undefined) {
     if (body.notes !== null && typeof body.notes !== 'string') {

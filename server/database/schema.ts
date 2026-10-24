@@ -13,8 +13,12 @@ export const movies = sqliteTable('movies', {
   genres: text('genres').notNull().default('[]'),
   format: text('format').notNull(),
   edition: text('edition'),
-  watched: integer('watched', { mode: 'boolean' }).notNull().default(false),
-  rating: integer('rating'),
+  dougWatched: integer('doug_watched', { mode: 'boolean' }).notNull().default(false),
+  gilWatched: integer('gil_watched', { mode: 'boolean' }).notNull().default(false),
+  dougWouldWatchAgain: integer('doug_would_watch_again', { mode: 'boolean' }).notNull().default(false),
+  gilWouldWatchAgain: integer('gil_would_watch_again', { mode: 'boolean' }).notNull().default(false),
+  dougRating: integer('doug_rating'),
+  gilRating: integer('gil_rating'),
   notes: text('notes'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
     .notNull()

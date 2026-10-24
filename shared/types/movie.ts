@@ -15,8 +15,12 @@ export interface Movie {
   genres: string[]
   format: MovieFormat
   edition: string | null
-  watched: boolean
-  rating: number | null
+  dougWatched: boolean
+  gilWatched: boolean
+  dougWouldWatchAgain: boolean
+  gilWouldWatchAgain: boolean
+  dougRating: number | null
+  gilRating: number | null
   notes: string | null
   createdAt: string
 }

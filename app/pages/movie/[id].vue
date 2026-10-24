@@ -22,8 +22,12 @@ useHead({
 
 const format = ref<MovieFormat>('Blu-ray')
 const edition = ref('')
-const watched = ref(false)
-const rating = ref<number | ''>('')
+const dougWatched = ref(false)
+const gilWatched = ref(false)
+const dougWouldWatchAgain = ref(false)
+const gilWouldWatchAgain = ref(false)
+const dougRating = ref<number | ''>('')
+const gilRating = ref<number | ''>('')
 const notes = ref('')
 const saving = ref(false)
 const feedback = ref('')
@@ -33,10 +37,24 @@ watch(movie, (value) => {
   if (!value) return
   format.value = value.format
   edition.value = value.edition || ''
-  watched.value = value.watched
-  rating.value = value.rating ?? ''
+  dougWatched.value = value.dougWatched
+  gilWatched.value = value.gilWatched
+  dougWouldWatchAgain.value = value.dougWouldWatchAgain
+  gilWouldWatchAgain.value = value.gilWouldWatchAgain
+  dougRating.value = value.dougRating ?? ''
+  gilRating.value = value.gilRating ?? ''
   notes.value = value.notes || ''
 }, { immediate: true })
+
+function updateDougWatched(watched: boolean) {
+  dougWatched.value = watched
+  if (!watched) dougWouldWatchAgain.value = false
+}
+
+function updateGilWatched(watched: boolean) {
+  gilWatched.value = watched
+  if (!watched) gilWouldWatchAgain.value = false
+}
 
 async function saveChanges() {
   saving.value = true
@@ -49,8 +67,12 @@ async function saveChanges() {
       body: {
         format: format.value,
         edition: edition.value,
-        watched: watched.value,
-        rating: rating.value === '' ? null : Number(rating.value),
+        dougWatched: dougWatched.value,
+        gilWatched: gilWatched.value,
+        dougWouldWatchAgain: dougWouldWatchAgain.value,
+        gilWouldWatchAgain: gilWouldWatchAgain.value,
+        dougRating: dougRating.value === '' ? null : Number(dougRating.value),
+        gilRating: gilRating.value === '' ? null : Number(gilRating.value),
         notes: notes.value,
       },
     })
@@ -144,19 +166,48 @@ async function removeMovie() {
               Edition
               <input v-model="edition" type="text" placeholder="e.g. Collector's edition">
             </label>
-            <label class="field-label">
-              Personal rating
-              <select v-model="rating">
+            <div class="personal-details-divider field-full" role="separator" aria-label="Personal details" />
+            <label class="field-label watched-toggle">
+              <span>
+                <strong>Doug watched</strong>
+                <small>Doug has watched this title.</small>
+              </span>
+              <input :checked="dougWatched" type="checkbox" @change="updateDougWatched(!dougWatched)">
+            </label>
+            <label class="field-label watched-toggle">
+              <span>
+                <strong>Gil watched</strong>
+                <small>Gil has watched this title.</small>
+              </span>
+              <input :checked="gilWatched" type="checkbox" @change="updateGilWatched(!gilWatched)">
+            </label>
+            <label v-if="dougWatched" class="field-label watched-toggle">
+              <span>
+                <strong>Doug would watch again</strong>
+                <small>Doug would watch this title again.</small>
+              </span>
+              <input v-model="dougWouldWatchAgain" type="checkbox">
+            </label>
+            <label v-if="gilWatched" class="field-label watched-toggle">
+              <span>
+                <strong>Gil would watch again</strong>
+                <small>Gil would watch this title again.</small>
+              </span>
+              <input v-model="gilWouldWatchAgain" type="checkbox">
+            </label>
+            <label v-if="dougWatched" class="field-label">
+              Doug rating
+              <select v-model="dougRating">
                 <option value="">Not rated</option>
                 <option v-for="value in 10" :key="value" :value="value">{{ value }} / 10</option>
               </select>
             </label>
-            <label class="field-label field-full watched-toggle">
-              <span>
-                <strong>Watched</strong>
-                <small>Mark this title as watched.</small>
-              </span>
-              <input v-model="watched" type="checkbox">
+            <label v-if="gilWatched" class="field-label">
+              Gil rating
+              <select v-model="gilRating">
+                <option value="">Not rated</option>
+                <option v-for="value in 10" :key="value" :value="value">{{ value }} / 10</option>
+              </select>
             </label>
             <label class="field-label field-full">
               Notes
@@ -181,8 +232,13 @@ async function removeMovie() {
           </div>
           <dl class="public-copy-details">
             <div><dt>EDITION</dt><dd>{{ movie.edition || 'Not specified' }}</dd></div>
-            <div><dt>WATCHED</dt><dd>{{ movie.watched ? 'Watched' : 'Not watched' }}</dd></div>
-            <div><dt>PERSONAL RATING</dt><dd>{{ movie.rating ? `${movie.rating} / 10` : 'Not rated' }}</dd></div>
+            <div class="personal-details-divider" role="separator" aria-label="Personal details" />
+            <div><dt>DOUG WATCHED</dt><dd>{{ movie.dougWatched ? 'Watched' : 'Not watched' }}</dd></div>
+            <div><dt>GIL WATCHED</dt><dd>{{ movie.gilWatched ? 'Watched' : 'Not watched' }}</dd></div>
+            <div v-if="movie.dougWatched"><dt>DOUG WOULD WATCH AGAIN</dt><dd>{{ movie.dougWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
+            <div v-if="movie.gilWatched"><dt>GIL WOULD WATCH AGAIN</dt><dd>{{ movie.gilWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
+            <div v-if="movie.dougWatched"><dt>DOUG RATING</dt><dd>{{ movie.dougRating ? `${movie.dougRating} / 10` : 'Not rated' }}</dd></div>
+            <div v-if="movie.gilWatched"><dt>GIL RATING</dt><dd>{{ movie.gilRating ? `${movie.gilRating} / 10` : 'Not rated' }}</dd></div>
             <div v-if="movie.notes" class="public-notes"><dt>NOTES</dt><dd>{{ movie.notes }}</dd></div>
           </dl>
         </section>

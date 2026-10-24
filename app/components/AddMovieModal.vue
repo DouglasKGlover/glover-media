@@ -15,7 +15,12 @@ const results = ref<TmdbSearchResult[]>([])
 const selected = ref<TmdbMovieDetails | null>(null)
 const format = ref<MovieFormat>('Blu-ray')
 const edition = ref('')
-const rating = ref<number | ''>('')
+const dougWatched = ref(false)
+const gilWatched = ref(false)
+const dougWouldWatchAgain = ref(false)
+const gilWouldWatchAgain = ref(false)
+const dougRating = ref<number | ''>('')
+const gilRating = ref<number | ''>('')
 const notes = ref('')
 const searching = ref(false)
 const loadingDetails = ref(false)
@@ -23,11 +28,27 @@ const saving = ref(false)
 const errorMessage = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
+function updateDougWatched(watched: boolean) {
+  dougWatched.value = watched
+  if (!watched) dougWouldWatchAgain.value = false
+}
+
+function updateGilWatched(watched: boolean) {
+  gilWatched.value = watched
+  if (!watched) gilWouldWatchAgain.value = false
+}
+
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
     query.value = ''
     results.value = []
     selected.value = null
+    dougWatched.value = false
+    gilWatched.value = false
+    dougWouldWatchAgain.value = false
+    gilWouldWatchAgain.value = false
+    dougRating.value = ''
+    gilRating.value = ''
     errorMessage.value = ''
   }
 })
@@ -94,7 +115,12 @@ async function addMovie() {
         genres: selected.value.genres.map(genre => genre.name),
         format: format.value,
         edition: edition.value,
-        rating: rating.value === '' ? null : Number(rating.value),
+        dougWatched: dougWatched.value,
+        gilWatched: gilWatched.value,
+        dougWouldWatchAgain: dougWouldWatchAgain.value,
+        gilWouldWatchAgain: gilWouldWatchAgain.value,
+        dougRating: dougRating.value === '' ? null : Number(dougRating.value),
+        gilRating: gilRating.value === '' ? null : Number(gilRating.value),
         notes: notes.value,
       },
     })
@@ -212,9 +238,45 @@ function close() {
               Edition
               <input v-model="edition" type="text" placeholder="Optional edition name">
             </label>
-            <label class="field-label">
-              Personal rating
-              <select v-model="rating">
+            <div class="personal-details-divider field-full" role="separator" aria-label="Personal details" />
+            <label class="field-label watched-toggle">
+              <span>
+                <strong>Doug watched</strong>
+                <small>Doug has watched this title.</small>
+              </span>
+              <input :checked="dougWatched" type="checkbox" @change="updateDougWatched(!dougWatched)">
+            </label>
+            <label class="field-label watched-toggle">
+              <span>
+                <strong>Gil watched</strong>
+                <small>Gil has watched this title.</small>
+              </span>
+              <input :checked="gilWatched" type="checkbox" @change="updateGilWatched(!gilWatched)">
+            </label>
+            <label v-if="dougWatched" class="field-label watched-toggle">
+              <span>
+                <strong>Doug would watch again</strong>
+                <small>Doug would watch this title again.</small>
+              </span>
+              <input v-model="dougWouldWatchAgain" type="checkbox">
+            </label>
+            <label v-if="gilWatched" class="field-label watched-toggle">
+              <span>
+                <strong>Gil would watch again</strong>
+                <small>Gil would watch this title again.</small>
+              </span>
+              <input v-model="gilWouldWatchAgain" type="checkbox">
+            </label>
+            <label v-if="dougWatched" class="field-label">
+              Doug rating
+              <select v-model="dougRating">
+                <option value="">Not rated</option>
+                <option v-for="value in 10" :key="value" :value="value">{{ value }} / 10</option>
+              </select>
+            </label>
+            <label v-if="gilWatched" class="field-label">
+              Gil rating
+              <select v-model="gilRating">
                 <option value="">Not rated</option>
                 <option v-for="value in 10" :key="value" :value="value">{{ value }} / 10</option>
               </select>

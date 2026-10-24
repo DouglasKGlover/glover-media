@@ -143,14 +143,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   filter: contrast(2);
   mix-blend-mode: soft-light;
 }
-.watched-indicator { z-index: 2; }
+.watched-indicators { position: absolute; z-index: 2; top: 9px; right: 9px; display: flex; gap: 4px; }
 .movie-card:is(:hover, :focus-visible) .poster-frame { border-radius: 8px / 5px; }
 .movie-card:is(:hover, :focus-visible) .poster-frame > img { transform: scale(1.045) skewX(-.35deg); filter: saturate(1.2) contrast(1.08); }
 .movie-card:is(:hover, :focus-visible) .poster-frame::before { opacity: .62; }
 .movie-card:is(:hover, :focus-visible) .poster-frame::after { opacity: .45; animation: crt-flicker 3.6s linear infinite; }
 .movie-card:is(:hover, :focus-visible) .crt-noise { opacity: .42; animation: crt-noise-rotate 120ms infinite; }
 .poster-placeholder { height: 100%; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; color: var(--text-primary); background: linear-gradient(145deg, #242832, #171920 65%, #3b414c); font: 24px/.95 'Bebas Neue', sans-serif; }
-.watched-indicator { position: absolute; top: 9px; right: 9px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: var(--bg-canvas); background: var(--status-owned); font-size: 13px; font-weight: 700; }
+.watched-indicator { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: var(--bg-canvas); background: var(--status-owned); font: 9px 'IBM Plex Mono', monospace; font-weight: 700; }
 @keyframes crt-flicker {
   0% { background-position: 0 -100%, 0 0; }
   100% { background-position: 0 100%, 0 0; }
@@ -223,10 +223,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .panel-heading .format-badge { padding: 6px 9px; font-size: 9px; }
 .public-copy-details { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
 .public-copy-details div { min-width: 0; }
+.public-copy-details .personal-details-divider { grid-column: 1 / -1; width: 100%; height: 1px; padding: 0; background: var(--border-default); }
 .public-copy-details dt { margin-bottom: 6px; color: var(--text-secondary); font: 9px 'IBM Plex Mono', monospace; letter-spacing: 1px; }
 .public-copy-details dd { margin: 0; overflow-wrap: anywhere; font-size: 12px; line-height: 1.55; }
 .public-copy-details .public-notes { grid-column: 1 / -1; }
 .detail-form-grid, .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.personal-details-divider { width: 100%; height: 1px; background: var(--border-default); }
 .field-label { display: flex; flex-direction: column; gap: 7px; color: var(--text-secondary); font: 10px 'IBM Plex Mono', monospace; letter-spacing: .4px; }
 .field-label input, .field-label select, .field-label textarea { color: var(--text-primary); font: 12px Inter, sans-serif; letter-spacing: 0; }
 .field-label input::placeholder, .field-label textarea::placeholder { color: #777c86; }

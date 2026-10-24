@@ -19,14 +19,22 @@ const filteredMovies = computed(() => {
   const results = movies.value.filter((movie) => {
     const matchesSearch = !term || movie.title.toLowerCase().includes(term)
     const matchesFormat = !format.value || movie.format === format.value
-    const matchesWatched = !watched.value
-      || (watched.value === 'watched' ? movie.watched : !movie.watched)
+    const matchesWatched = watched.value === 'doug'
+      ? movie.dougWatched
+      : watched.value === 'gil'
+        ? movie.gilWatched
+        : watched.value === 'both'
+          ? movie.dougWatched && movie.gilWatched
+          : watched.value === 'neither'
+            ? !movie.dougWatched && !movie.gilWatched
+            : true
     return matchesSearch && matchesFormat && matchesWatched
   })
 
   return results.sort((a, b) => {
     if (sort.value === 'year') return (b.releaseYear ?? 0) - (a.releaseYear ?? 0)
-    if (sort.value === 'rating') return (b.rating ?? 0) - (a.rating ?? 0)
+    if (sort.value === 'doug-rating') return (b.dougRating ?? 0) - (a.dougRating ?? 0)
+    if (sort.value === 'gil-rating') return (b.gilRating ?? 0) - (a.gilRating ?? 0)
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 })
@@ -71,11 +79,13 @@ const filteredMovies = computed(() => {
           {{ value }}
         </button>
         <label class="select-control">
-          <span class="sr-only">Filter by watched status</span>
+          <span class="sr-only">Filter by who watched</span>
           <select v-model="watched">
-            <option value="">Any status</option>
-            <option value="watched">Watched</option>
-            <option value="unwatched">Unwatched</option>
+            <option value="">Any watched status</option>
+            <option value="doug">Doug watched</option>
+            <option value="gil">Gil watched</option>
+            <option value="both">Both watched</option>
+            <option value="neither">Neither watched</option>
           </select>
         </label>
         <label class="select-control sort-control">
@@ -83,7 +93,8 @@ const filteredMovies = computed(() => {
           <select v-model="sort">
             <option value="recent">Recently added</option>
             <option value="year">Release year</option>
-            <option value="rating">Personal rating</option>
+            <option value="doug-rating">Doug rating</option>
+            <option value="gil-rating">Gil rating</option>
           </select>
         </label>
       </div>

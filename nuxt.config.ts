@@ -22,6 +22,9 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Glover Media',
+      link: [
+        { rel: 'icon', type: 'image/png', href: '/favicon.png' },
+      ],
       meta: [
         { name: 'theme-color', content: '#101217' },
       ],

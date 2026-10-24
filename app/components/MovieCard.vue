@@ -15,7 +15,10 @@ defineProps<{ movie: Movie }>()
       >
       <div v-else class="poster-placeholder"><span>{{ movie.title }}</span></div>
       <span class="crt-noise" aria-hidden="true" />
-      <span v-if="movie.watched" class="watched-indicator" aria-label="Watched">✓</span>
+      <span v-if="movie.dougWatched || movie.gilWatched" class="watched-indicators">
+        <span v-if="movie.dougWatched" class="watched-indicator" aria-label="Doug watched" title="Doug watched">D</span>
+        <span v-if="movie.gilWatched" class="watched-indicator" aria-label="Gil watched" title="Gil watched">G</span>
+      </span>
     </div>
     <div class="movie-card-info">
       <h3>{{ movie.title }}</h3>
