@@ -104,8 +104,8 @@ const filteredMovies = computed(() => {
 
     <section class="collection-results">
       <div class="results-label">
-        <h2>MY COLLECTION</h2>
-        <span>SHOWING {{ filteredMovies.length }} OF {{ movies.length }} FILMS</span>
+        <h2>OUR COLLECTION</h2>
+        <span>SHOWING {{ filteredMovies.length }} OF {{ movies.length }} TITLES</span>
       </div>
       <div v-if="pending" class="loading-state">Opening the archive…</div>
       <div v-else-if="filteredMovies.length" class="movie-grid">
