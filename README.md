@@ -1,42 +1,87 @@
 # Glover Media
 
-Glover Media is a movie and TV collection catalog, built with Nuxt 4, Tailwind CSS 4, SQLite, Drizzle ORM, and TMDB.
+Glover Media is a single-owner catalog for a movie and TV collection. Local development uses Nuxt 4, SQLite, and Drizzle. The AWS deployment uses a static Nuxt site, Lambda, DynamoDB, S3, and CloudFront.
 
 ## Local development
 
-1. Install Node.js 26 or newer and run `npm install`.
-2. Run `npm run auth:setup` in an interactive terminal. Choose the owner username and password; the command prints a scrypt password hash and random signing secret without echoing your password.
-3. Copy `.env.example` to `.env`, set `TMDB_API_KEY`, and replace the three generated authentication values with those printed in step 2. Keep `.env` private and out of source control.
-4. Create/update the SQLite schema with `npm run db:push`.
-5. Start Nuxt with `npm run dev`.
+1. Install Node.js 26 or newer, then run `npm ci`.
+2. Run `npm run auth:setup` in an interactive terminal. It prints a scrypt password hash and random signing secret; it does not echo the password.
+3. Copy `.env.example` to `.env`, set `TMDB_API_KEY`, and replace the example authentication values with the generated ones. Keep `.env` private.
+4. Run `npm run db:push` and then `npm run dev`.
 
-The default database file is `./data/movies.db`. Set `DATABASE_URL` to change its path. TMDB credentials and login secrets are only used by server routes and are never sent to the browser.
+The local SQLite file defaults to `./data/movies.db`; set `DATABASE_URL` to use a different path. When `DYNAMODB_TABLE_NAME` is unset, the API uses SQLite and does not publish AWS events.
 
-## Internet deployment and account security
+## AWS architecture
 
-This is a single-owner login, not public account registration. Collection pages, film/show details, and read-only catalog APIs are public so the archive can be shared. The configured username and scrypt password hash are the only credentials accepted. Adding, editing, and deleting collection entries, as well as TMDB search/details for the add flow, require the owner session. Login sessions are signed, expire after seven days, and are stored in `HttpOnly`, `SameSite=Strict` cookies (`Secure` in production). Mutating API requests also require a same-origin check and a session CSRF token. Failed logins are rate limited.
+- **Nuxt static site:** generated HTML and assets are hosted in a private S3 bucket and served by CloudFront.
+- **API:** a Nuxt/Nitro Lambda behind an API Gateway HTTP API handles public catalog reads, owner login, catalog changes, and TMDB requests.
+- **Storage:** one on-demand DynamoDB table stores movie records, unique TMDB-ID mappings, login sessions, and expiring login-attempt counters.
+- **Publishing:** successful add, edit, and delete requests emit an EventBridge event. EventBridge starts CodeBuild, which reads the current public API, regenerates the homepage, collection, and movie detail pages, uploads them to S3, and invalidates CloudFront.
+- **Region:** `us-east-1`. CloudFront certificates must also be in `us-east-1`.
 
-Set `ARCHIVE_USERNAME`, `AUTH_PASSWORD_HASH`, and `AUTH_SECRET` as deployment secrets. Before first launch, apply the schema to the same persistent database file (`npm run db:push`, with `DATABASE_URL` pointing at that file). Serve the app only behind HTTPS with a trusted reverse proxy; do not expose the unencrypted application port to the public internet. Back up the persistent SQLite volume securely.
+Catalog changes are saved immediately in DynamoDB. The public static pages update after CodeBuild completes; this normally takes a few minutes. There is no live server render on public page requests.
 
-The add dialog supports both films and TV shows using TMDB's movie and TV metadata endpoints. Film/show metadata and catalog entries remain private behind the login.
+**The catalog is public.** The generated HTML and public read API include titles, notes, watched status, ratings, and “would watch again” values. Login protects editing and TMDB add-flow endpoints; it does not hide personal catalog details.
 
-Before exposing a deployment, review `npm audit --omit=dev`. The current latest Nuxt/Nitro dependency tree reports a high-severity transitive `node-forge` advisory through `listhen`; npm currently suggests downgrading Nuxt to 4.1.3 to clear it, so the latest Nuxt version is retained rather than silently applying that downgrade.
+## First AWS deployment
+
+You need an AWS account configured for the AWS CLI in `us-east-1`, Docker, and the AWS SAM CLI. The GitHub repository used by CodeBuild must be publicly cloneable; the default in `template.yaml` points at this project's public repository.
+
+1. Generate or choose the owner credentials with `npm run auth:setup`. Keep the password, hash, and signing secret available for the deployment prompts.
+2. Build the Lambda artifact and deploy the stack:
+
+   ```sh
+   npm run build:lambda
+   sam build --use-container --template-file template.yaml
+   sam deploy --guided --template-file .aws-sam/build/template.yaml
+   ```
+
+   Use region `us-east-1`, stack name `glover-media`, and enter the owner username, password hash, signing secret, TMDB key, and domain when prompted. `AuthPasswordHash`, `AuthSecret`, and `TmdbApiKey` are CloudFormation `NoEcho` parameters. **Do not save guided parameter values into `samconfig.toml` or commit them.** You may initially leave the certificate ARN empty to use the CloudFront hostname while setting up the domain.
+
+3. Get the table name from the stack outputs and import the local catalog. The import is safe to repeat for rows already imported:
+
+   ```powershell
+   $env:DYNAMODB_TABLE_NAME = "value-from-DynamoDBTableName-output"
+   npm run data:import:dynamodb
+   Remove-Item Env:\DYNAMODB_TABLE_NAME
+   ```
+
+   The script reads the current `DATABASE_URL` (or `./data/movies.db`) and leaves that database unchanged.
+
+4. Start the initial static-site publish from the stack output:
+
+   ```sh
+   aws codebuild start-build --project-name glover-media-static-publish
+   ```
+
+   Check the CodeBuild build logs and wait for the distribution deployment before using the CloudFront hostname.
+
+5. To use `glovermedia.ca`, request an ACM certificate for the domain **in `us-east-1`**, add ACM's DNS validation CNAME record(s) in Namecheap, and wait until the certificate is issued. Update the stack with that certificate ARN and `SiteDomainName=glovermedia.ca`; do not save secret parameter overrides in `samconfig.toml`. Then add a Namecheap **ALIAS** record for host `@` pointing to the CloudFront hostname from the stack outputs. Namecheap BasicDNS supports ALIAS records at the root; remove conflicting root A, AAAA, CNAME, or URL-redirect records first. See [Namecheap's ALIAS record instructions](https://www.namecheap.com/support/knowledgebase/article.aspx/10128/2237/how-to-create-an-alias-record/).
+
+## Updating and operating the AWS version
+
+- For API, schema, or Lambda changes, run `npm run build:lambda`, `sam build --use-container`, and `sam deploy`. AWS SDK credentials and the selected stack region are used by SAM.
+- The static publisher clones the repository's default branch. Commit/push frontend changes before starting a build. Catalog edits automatically start a build from the latest default-branch revision.
+- To manually regenerate the public pages, start the CodeBuild project again. The build needs the API to be available and reads the current catalog through its public GET endpoint.
+- The S3 bucket blocks public access; CloudFront uses Origin Access Control. API requests are not cached. Lambda sessions and login-attempt counters expire through DynamoDB TTL.
+- Configure an AWS Budget or billing alerts before public launch. Request volume, data transfer, CloudFront invalidations, and AWS pricing/free-tier eligibility vary.
+
+## Database and migration commands
+
+- `npm run db:push` applies the Drizzle schema to the local SQLite database.
+- `npm run db:generate` generates Drizzle migration files.
+- `npm run data:import:dynamodb` copies the local SQLite catalog into the configured DynamoDB table without modifying SQLite.
 
 ## Docker
 
-Set `TMDB_API_KEY` in the environment or in a `.env` file, then run:
+Docker Compose remains available for a self-hosted local/server deployment using SQLite:
 
 ```sh
 docker compose up --build
 ```
 
-The container stores its SQLite database at `/app/data/movies.db`; Compose persists it in the local `./data` directory.
-
-## Database commands
-
-- `npm run db:push` applies the Drizzle schema to the configured SQLite database.
-- `npm run db:generate` generates Drizzle migration files in `server/database/migrations`.
+The Compose setup persists the local database under `./data`.
 
 ## Design
 
-The interface follows the supplied Figma reference: canvas `#101217`, raised surfaces `#1a1d24` and `#242832`, warm text `#f4ead5`, coral action `#ff6b42`, and Inter / Bebas Neue / IBM Plex Mono typography. Movie and TV metadata are loaded from TMDB; the collection is stored locally in SQLite.
+The interface follows the supplied Figma reference: canvas `#101217`, raised surfaces `#1a1d24` and `#242832`, warm text `#f4ead5`, coral action `#ff6b42`, and Inter / Bebas Neue / IBM Plex Mono typography.

@@ -1,7 +1,7 @@
-import { movies } from '../../database/schema'
-import { getDb } from '../../utils/db'
 import { movieFormats } from '../../../shared/types/movie'
-import type { MediaType } from '../../../shared/types/movie'
+import type { MediaType, MovieFormat } from '../../../shared/types/movie'
+import { createMovie, DuplicateMovieError } from '../../utils/catalog'
+import { isDynamoConfigured, publishCatalogChanged } from '../../utils/dynamo'
 
 interface NewMovieBody {
   tmdbId: number
@@ -12,7 +12,7 @@ interface NewMovieBody {
   overview?: string | null
   runtime?: number | null
   genres?: string[]
-  format: string
+  format: MovieFormat
   edition?: string | null
   dougWatched?: boolean
   gilWatched?: boolean
@@ -32,7 +32,9 @@ export default defineEventHandler(async (event) => {
     || (body.gilWatched !== undefined && typeof body.gilWatched !== 'boolean')
     || (body.dougWouldWatchAgain !== undefined && typeof body.dougWouldWatchAgain !== 'boolean')
     || (body.gilWouldWatchAgain !== undefined && typeof body.gilWouldWatchAgain !== 'boolean')
-    || !movieFormats.includes(body.format as typeof movieFormats[number])) {
+    || (body.dougWouldWatchAgain && !body.dougWatched)
+    || (body.gilWouldWatchAgain && !body.gilWatched)
+    || !movieFormats.includes(body.format)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid movie details' })
   }
 
@@ -50,7 +52,7 @@ export default defineEventHandler(async (event) => {
     posterPath: body.posterPath ?? null,
     overview: body.overview ?? null,
     runtime: body.runtime ?? null,
-    genres: JSON.stringify(Array.isArray(body.genres) ? body.genres : []),
+    genres: Array.isArray(body.genres) ? body.genres : [],
     format: body.format,
     edition: body.edition?.trim() || null,
     dougWatched: body.dougWatched ?? false,
@@ -63,14 +65,13 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const [movie] = await getDb().insert(movies).values(values).returning()
-    if (!movie) {
-      throw createError({ statusCode: 500, statusMessage: 'Movie could not be saved' })
-    }
+    const movie = await createMovie(values)
+    if (isDynamoConfigured()) await publishCatalogChanged()
     setResponseStatus(event, 201)
-    return { ...movie, genres: JSON.parse(movie.genres) as string[] }
+    return movie
   } catch (error) {
-    if (error instanceof Error && error.message.includes('movies.media_type, movies.tmdb_id')) {
+    if (error instanceof DuplicateMovieError
+      || (error instanceof Error && error.message.includes('movies.media_type, movies.tmdb_id'))) {
       throw createError({ statusCode: 409, statusMessage: 'This title is already in the collection' })
     }
     throw error

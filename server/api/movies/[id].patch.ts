@@ -1,10 +1,10 @@
-import { eq } from 'drizzle-orm'
-import { movies } from '../../database/schema'
-import { getDb } from '../../utils/db'
+import { updateMovie } from '../../utils/catalog'
 import { movieFormats } from '../../../shared/types/movie'
+import type { MovieFormat } from '../../../shared/types/movie'
+import { isDynamoConfigured, publishCatalogChanged } from '../../utils/dynamo'
 
 interface MovieUpdateBody {
-  format?: string
+  format?: MovieFormat
   edition?: string | null
   dougWatched?: boolean
   gilWatched?: boolean
@@ -26,9 +26,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Provide at least one field to update' })
   }
 
-  const updates: Partial<typeof movies.$inferInsert> = {}
+  const updates: Parameters<typeof updateMovie>[1] = {}
   if (body.format !== undefined) {
-    if (!movieFormats.includes(body.format as typeof movieFormats[number])) {
+    if (!movieFormats.includes(body.format)) {
       throw createError({ statusCode: 400, statusMessage: 'Invalid format' })
     }
     updates.format = body.format
@@ -44,21 +44,25 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: 'Doug watched must be a boolean' })
     }
     updates.dougWatched = body.dougWatched
+    if (!body.dougWatched) updates.dougWouldWatchAgain = false
   }
   if (body.gilWatched !== undefined) {
     if (typeof body.gilWatched !== 'boolean') {
       throw createError({ statusCode: 400, statusMessage: 'Gil watched must be a boolean' })
     }
     updates.gilWatched = body.gilWatched
+    if (!body.gilWatched) updates.gilWouldWatchAgain = false
   }
   if (body.dougWouldWatchAgain !== undefined) {
-    if (typeof body.dougWouldWatchAgain !== 'boolean') {
+    if (typeof body.dougWouldWatchAgain !== 'boolean'
+      || (body.dougWouldWatchAgain && body.dougWatched === false)) {
       throw createError({ statusCode: 400, statusMessage: 'Doug would watch again must be a boolean' })
     }
     updates.dougWouldWatchAgain = body.dougWouldWatchAgain
   }
   if (body.gilWouldWatchAgain !== undefined) {
-    if (typeof body.gilWouldWatchAgain !== 'boolean') {
+    if (typeof body.gilWouldWatchAgain !== 'boolean'
+      || (body.gilWouldWatchAgain && body.gilWatched === false)) {
       throw createError({ statusCode: 400, statusMessage: 'Gil would watch again must be a boolean' })
     }
     updates.gilWouldWatchAgain = body.gilWouldWatchAgain
@@ -85,15 +89,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'No supported fields were provided' })
   }
 
-  const [movie] = await getDb()
-    .update(movies)
-    .set(updates)
-    .where(eq(movies.id, id))
-    .returning()
+  const movie = await updateMovie(id, updates)
 
   if (!movie) {
     throw createError({ statusCode: 404, statusMessage: 'Movie not found' })
   }
 
-  return { ...movie, genres: JSON.parse(movie.genres) as string[] }
+  if (isDynamoConfigured()) await publishCatalogChanged()
+  return movie
 })

@@ -9,9 +9,11 @@ const search = ref('')
 const format = ref('')
 const watched = ref('')
 const sort = ref('recent')
+const runtimeConfig = useRuntimeConfig()
 const { data: movies, pending } = await useFetch<Movie[]>('/api/movies', {
   key: 'collection-movies',
   default: () => [],
+  baseURL: import.meta.server ? runtimeConfig.apiBaseUrl : undefined,
 })
 
 const filteredMovies = computed(() => {

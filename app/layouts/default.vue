@@ -3,11 +3,16 @@ import AppHeader from '~/components/AppHeader.vue'
 import AddMovieModal from '~/components/AddMovieModal.vue'
 
 const isAddMovieOpen = ref(false)
+const runtimeConfig = useRuntimeConfig()
 const { data: authSession } = await useFetch<{
   authenticated: boolean
   username?: string
   csrfToken?: string
-}>('/api/auth/session', { key: 'auth-session' })
+}>('/api/auth/session', {
+  key: 'auth-session',
+  baseURL: import.meta.server ? runtimeConfig.apiBaseUrl : undefined,
+  server: false,
+})
 
 function handleShortcut(event: KeyboardEvent) {
   if (authSession.value?.authenticated

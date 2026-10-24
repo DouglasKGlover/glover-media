@@ -1,5 +1,7 @@
 .nuxt
 .output
+.aws-sam/
+dist/
 .data
 data/
 node_modules/

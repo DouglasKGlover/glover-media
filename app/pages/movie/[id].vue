@@ -11,8 +11,10 @@ const { data: authSession } = useNuxtData<{
   csrfToken?: string
 }>('auth-session')
 const canEdit = computed(() => Boolean(authSession.value?.authenticated))
+const runtimeConfig = useRuntimeConfig()
 const { data: movie, error, refresh } = await useFetch<Movie>(() => `/api/movies/${id.value}`, {
   key: `movie-${id.value}`,
+  baseURL: import.meta.server ? runtimeConfig.apiBaseUrl : undefined,
 })
 useHead({
   title: computed(() => movie.value

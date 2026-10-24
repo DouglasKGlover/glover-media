@@ -7,13 +7,19 @@
   },
   "scripts": {
     "build": "nuxt build",
+    "build:lambda": "nuxt build --preset aws-lambda",
     "dev": "nuxt dev",
+    "generate:static": "node scripts/generate-static.mjs",
     "preview": "nuxt preview",
     "auth:setup": "node scripts/setup-auth.mjs",
+    "data:import:dynamodb": "node scripts/import-sqlite-to-dynamo.mjs",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1156.0",
+    "@aws-sdk/client-eventbridge": "^3.1156.0",
+    "@aws-sdk/lib-dynamodb": "^3.1156.0",
     "@tailwindcss/vite": "4.3.3",
     "better-sqlite3": "13.0.3",
     "dotenv": "18.0.9",

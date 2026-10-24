@@ -1,6 +1,4 @@
-import { eq } from 'drizzle-orm'
-import { movies } from '../../database/schema'
-import { getDb } from '../../utils/db'
+import { getMovie } from '../../utils/catalog'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -8,15 +6,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid movie ID' })
   }
 
-  const [movie] = await getDb()
-    .select()
-    .from(movies)
-    .where(eq(movies.id, id))
-    .limit(1)
-
+  const movie = await getMovie(id)
   if (!movie) {
     throw createError({ statusCode: 404, statusMessage: 'Movie not found' })
   }
-
-  return { ...movie, genres: JSON.parse(movie.genres) as string[] }
+  return movie
 })

@@ -1,0 +1,439 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Glover Media serverless API and static catalog hosting
+
+Parameters:
+  ArchiveUsername:
+    Type: String
+    MinLength: 1
+    Description: Single owner login name
+  AuthPasswordHash:
+    Type: String
+    NoEcho: true
+    Description: Scrypt hash printed by npm run auth:setup
+  AuthSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Random signing secret printed by npm run auth:setup
+  TmdbApiKey:
+    Type: String
+    NoEcho: true
+    Description: TMDB v3 API key
+  SiteDomainName:
+    Type: String
+    Default: glovermedia.ca
+    Description: Public website hostname
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: Optional ACM certificate ARN in us-east-1 for SiteDomainName
+  RepositoryUrl:
+    Type: String
+    Default: https://github.com/DouglasKGlover/glover-media.git
+    Description: Public Git repository cloned by CodeBuild to publish the static site
+
+Conditions:
+  HasCertificate: !Not [!Equals [!Ref CertificateArn, '']]
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures:
+      - x86_64
+    MemorySize: 512
+    Timeout: 20
+
+Resources:
+  ArchiveTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  CatalogEvents:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: GloverMediaCatalogEvents
+
+  ArchiveApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+
+  ArchiveFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ArchiveRuntimeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DeleteItem
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Scan
+                  - dynamodb:TransactWriteItems
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt ArchiveTable.Arn
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !GetAtt CatalogEvents.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+
+  ArchiveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .output/server/
+      Handler: index.handler
+      Role: !GetAtt ArchiveFunctionRole.Arn
+      Environment:
+        Variables:
+          NUXT_DYNAMODB_TABLE_NAME: !Ref ArchiveTable
+          NUXT_CATALOG_EVENT_BUS_NAME: !Ref CatalogEvents
+          NUXT_PUBLIC_SITE_ORIGIN: !If
+            - HasCertificate
+            - !Sub https://${SiteDomainName}
+            - ''
+          NUXT_ARCHIVE_USERNAME: !Ref ArchiveUsername
+          NUXT_AUTH_PASSWORD_HASH: !Ref AuthPasswordHash
+          NUXT_AUTH_SECRET: !Ref AuthSecret
+          NUXT_TMDB_API_KEY: !Ref TmdbApiKey
+          NUXT_NODE_ENV: production
+      Events:
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ArchiveApi
+            Path: /{proxy+}
+            Method: ANY
+        ApiRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ArchiveApi
+            Path: /
+            Method: ANY
+
+  StaticSiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+
+  StaticSiteOriginAccess:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-site-access
+        Description: Private S3 access for Glover Media CloudFront distribution
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  StaticSiteRewrite:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub ${AWS::StackName}-static-routes
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Resolve extensionless Nuxt routes to generated index pages
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri.endsWith('/')) {
+            request.uri += 'index.html';
+          } else if (!uri.split('/').pop().includes('.')) {
+            request.uri += '/index.html';
+          }
+          return request;
+        }
+
+  ApiViewerHeaders:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub ${AWS::StackName}-api-viewer-headers
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Preserve the viewer host for same-origin CSRF checks
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.headers['x-glover-viewer-host'] = { value: request.headers.host.value };
+          return request;
+        }
+
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-api-no-cache
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: false
+          EnableAcceptEncodingBrotli: false
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  StaticSiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Glover Media static catalog
+        Aliases: !If
+          - HasCertificate
+          - - !Ref SiteDomainName
+          - !Ref AWS::NoValue
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: StaticSiteOrigin
+            DomainName: !GetAtt StaticSiteBucket.RegionalDomainName
+            OriginAccessControlId: !Ref StaticSiteOriginAccess
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: ArchiveApiOrigin
+            DomainName: !Sub ${ArchiveApi}.execute-api.${AWS::Region}.amazonaws.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: StaticSiteOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt StaticSiteRewrite.FunctionARN
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: ArchiveApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: !Ref ApiCachePolicy
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ApiViewerHeaders.FunctionARN
+        ViewerCertificate: !If
+          - HasCertificate
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
+  StaticSiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StaticSiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${StaticSiteBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${StaticSiteDistribution}
+
+  StaticBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PublishStaticCatalog
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt StaticSiteBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                Resource: !Sub ${StaticSiteBucket.Arn}/*
+              - Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${StaticSiteDistribution}
+
+  StaticBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AWS::StackName}-static-publish
+      Description: Builds the public Nuxt catalog after catalog changes
+      ServiceRole: !GetAtt StaticBuildRole.Arn
+      ConcurrentBuildLimit: 1
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux-x86_64-standard:7.0
+        ImagePullCredentialsType: CODEBUILD
+        EnvironmentVariables:
+          - Name: API_BASE_URL
+            Value: !Sub https://${ArchiveApi}.execute-api.${AWS::Region}.amazonaws.com
+          - Name: SITE_BUCKET
+            Value: !Ref StaticSiteBucket
+          - Name: CLOUDFRONT_DISTRIBUTION_ID
+            Value: !Ref StaticSiteDistribution
+          - Name: REPOSITORY_URL
+            Value: !Ref RepositoryUrl
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                nodejs: 22
+            build:
+              commands:
+                - |
+                  set -e
+                  NODE_VERSION=$(curl -fsSL https://nodejs.org/dist/index.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).find(v=>v.version.startsWith("v26.")).version))')
+                  curl -fsSLO "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
+                  curl -fsSL "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt" | grep " node-$NODE_VERSION-linux-x64.tar.xz$" | sha256sum -c -
+                  tar -xJf "node-$NODE_VERSION-linux-x64.tar.xz"
+                  export PATH="$PWD/node-$NODE_VERSION-linux-x64/bin:$PATH"
+                  node --version
+                  git clone --depth 1 "$REPOSITORY_URL" source
+                  cd source
+                  npm ci
+                  npm run generate:static
+                  aws s3 sync .output/public "s3://$SITE_BUCKET" --delete --cache-control "public,max-age=300"
+                  if [ -d .output/public/_nuxt ]; then aws s3 cp .output/public/_nuxt/ "s3://$SITE_BUCKET/_nuxt/" --recursive --cache-control "public,max-age=31536000,immutable"; fi
+                  aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths '/*'
+      TimeoutInMinutes: 30
+
+  StartStaticBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartStaticCatalogBuild
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: codebuild:StartBuild
+                Resource: !GetAtt StaticBuildProject.Arn
+
+  CatalogChangedRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Rebuilds the static catalog after a successful mutation
+      EventBusName: !Ref CatalogEvents
+      EventPattern:
+        source:
+          - glover.media.catalog
+        detail-type:
+          - CatalogChanged
+      State: ENABLED
+      Targets:
+        - Id: StartStaticCatalogBuild
+          Arn: !GetAtt StaticBuildProject.Arn
+          RoleArn: !GetAtt StartStaticBuildRole.Arn
+
+Outputs:
+  ApiBaseUrl:
+    Description: API Gateway endpoint
+    Value: !Sub https://${ArchiveApi}.execute-api.${AWS::Region}.amazonaws.com
+  StaticBucketName:
+    Description: Private bucket containing the generated site
+    Value: !Ref StaticSiteBucket
+  CloudFrontDistributionId:
+    Description: Distribution ID used by the static publisher
+    Value: !Ref StaticSiteDistribution
+  CloudFrontDomainName:
+    Description: CloudFront hostname; configure Namecheap DNS to point the domain here
+    Value: !GetAtt StaticSiteDistribution.DomainName
+  StaticBuildProjectName:
+    Description: CodeBuild project for initial/manual static publishing
+    Value: !Ref StaticBuildProject
+  DynamoDBTableName:
+    Description: Catalog and session table name
+    Value: !Ref ArchiveTable

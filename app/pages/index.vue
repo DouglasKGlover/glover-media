@@ -4,13 +4,16 @@ import type { Movie } from '~~/shared/types/movie'
 definePageMeta({ layout: 'default' })
 
 const search = ref('')
+const runtimeConfig = useRuntimeConfig()
 const { data: movies, pending } = await useFetch<Movie[]>('/api/movies?recent=8', {
   key: 'recent-movies',
   default: () => [],
+  baseURL: import.meta.server ? runtimeConfig.apiBaseUrl : undefined,
 })
 const { data: allMovies } = await useFetch<Movie[]>('/api/movies', {
   key: 'collection-movies',
   default: () => [],
+  baseURL: import.meta.server ? runtimeConfig.apiBaseUrl : undefined,
 })
 const matchingMovies = computed(() => {
   const term = search.value.trim().toLowerCase()

@@ -1,5 +1,6 @@
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
+import { movieFormats } from '../../shared/types/movie'
 
 export const movies = sqliteTable('movies', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -11,7 +12,7 @@ export const movies = sqliteTable('movies', {
   overview: text('overview'),
   runtime: integer('runtime'),
   genres: text('genres').notNull().default('[]'),
-  format: text('format').notNull(),
+  format: text('format', { enum: movieFormats }).notNull(),
   edition: text('edition'),
   dougWatched: integer('doug_watched', { mode: 'boolean' }).notNull().default(false),
   gilWatched: integer('gil_watched', { mode: 'boolean' }).notNull().default(false),

@@ -5,9 +5,10 @@ import {
   timingSafeEqual,
 } from 'node:crypto'
 import type { H3Event } from 'h3'
+import { DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import { eq, lt } from 'drizzle-orm'
 import { archiveSessions } from '../database/schema'
-import { getDb } from './db'
+import { getDynamoDocumentClient, getDynamoTableName, isDynamoConfigured } from './dynamo'
 
 const sessionCookie = 'glover-media-session'
 const sessionLifetimeSeconds = 60 * 60 * 24 * 7
@@ -129,7 +130,18 @@ export async function readArchiveSession(event: H3Event) {
     return null
   }
 
-  const [session] = await getDb()
+  if (isDynamoConfigured()) {
+    const result = await getDynamoDocumentClient().send(new GetCommand({
+      TableName: getDynamoTableName(),
+      Key: { pk: `SESSION#${payload.sid}`, sk: 'SESSION' },
+    }))
+    return result.Item && typeof result.Item.expiresAt === 'number'
+      && result.Item.expiresAt > Date.now() / 1000
+      ? { id: payload.sid, csrfToken: payload.csrf }
+      : null
+  }
+
+  const [session] = await (await import('./db')).getDb()
     .select({ id: archiveSessions.id })
     .from(archiveSessions)
     .where(eq(archiveSessions.id, payload.sid))
@@ -148,12 +160,23 @@ export async function requireArchiveSession(event: H3Event) {
 export function verifyCsrfRequest(event: H3Event, csrfToken: string) {
   const requestOrigin = getRequestHeader(event, 'origin')
   const requestHost = getRequestHeader(event, 'host')
+  const viewerHost = getRequestHeader(event, 'x-glover-viewer-host')
   const forwardedProtocol = getRequestHeader(event, 'x-forwarded-proto')
     ?.split(',')[0]
     ?.trim()
   let originMatches = false
 
-  if (requestOrigin && requestHost) {
+  const configuredOrigin = String(useRuntimeConfig().publicSiteOrigin || '')
+  if (requestOrigin && configuredOrigin) {
+    originMatches = requestOrigin === configuredOrigin
+  } else if (requestOrigin && viewerHost) {
+    try {
+      const origin = new URL(requestOrigin)
+      originMatches = origin.protocol === 'https:' && origin.host === viewerHost
+    } catch {
+      originMatches = false
+    }
+  } else if (requestOrigin && requestHost) {
     try {
       const origin = new URL(requestOrigin)
       const requestProtocol = forwardedProtocol
@@ -176,9 +199,20 @@ export async function createArchiveSession(event: H3Event) {
   const csrfToken = randomBytes(32).toString('hex')
   const sessionId = randomBytes(32).toString('hex')
   const expiresAt = Math.floor(Date.now() / 1000) + sessionLifetimeSeconds
-  const db = getDb()
-  await db.delete(archiveSessions).where(lt(archiveSessions.expiresAt, Math.floor(Date.now() / 1000)))
-  await db.insert(archiveSessions).values({ id: sessionId, expiresAt })
+  if (isDynamoConfigured()) {
+    await getDynamoDocumentClient().send(new PutCommand({
+      TableName: getDynamoTableName(),
+      Item: {
+        pk: `SESSION#${sessionId}`,
+        sk: 'SESSION',
+        expiresAt,
+      },
+    }))
+  } else {
+    const db = (await import('./db')).getDb()
+    await db.delete(archiveSessions).where(lt(archiveSessions.expiresAt, Math.floor(Date.now() / 1000)))
+    await db.insert(archiveSessions).values({ id: sessionId, expiresAt })
+  }
   const token = signSession({
     csrf: csrfToken,
     exp: expiresAt,
@@ -207,16 +241,38 @@ export function clearArchiveSession(event: H3Event) {
 }
 
 export async function revokeArchiveSession(sessionId: string) {
-  await getDb().delete(archiveSessions).where(eq(archiveSessions.id, sessionId))
+  if (isDynamoConfigured()) {
+    await getDynamoDocumentClient().send(new DeleteCommand({
+      TableName: getDynamoTableName(),
+      Key: { pk: `SESSION#${sessionId}`, sk: 'SESSION' },
+    }))
+    return
+  }
+  await (await import('./db')).getDb().delete(archiveSessions).where(eq(archiveSessions.id, sessionId))
 }
 
 export function getArchiveUsername() {
   return getAuthConfig().username
 }
 
-export function checkLoginRateLimit(event: H3Event) {
-  const ip = event.node.req.socket.remoteAddress || 'unknown'
+export async function checkLoginRateLimit(event: H3Event) {
+  const ip = getClientAddress(event)
   const now = Date.now()
+  const window = Math.floor(now / loginWindowMs)
+  if (isDynamoConfigured()) {
+    const key = loginAttemptKey(ip, window)
+    const result = await getDynamoDocumentClient().send(new GetCommand({
+      TableName: getDynamoTableName(),
+      Key: key,
+    }))
+    const attemptCount = result.Item?.attempts
+    if (typeof attemptCount === 'number' && attemptCount >= loginAttemptLimit) {
+      event.node.res.setHeader('retry-after', String(Math.ceil(((window + 1) * loginWindowMs - now) / 1000)))
+      throw createError({ statusCode: 429, statusMessage: 'Too many login attempts. Try again in 15 minutes.' })
+    }
+    return
+  }
+
   const attempt = loginAttempts.get(ip)
 
   if (attempt && attempt.resetAt > now && attempt.count >= loginAttemptLimit) {
@@ -229,13 +285,61 @@ export function checkLoginRateLimit(event: H3Event) {
   }
 }
 
-export function recordLoginFailure(event: H3Event) {
-  const ip = event.node.req.socket.remoteAddress || 'unknown'
+export async function recordLoginFailure(event: H3Event) {
+  const ip = getClientAddress(event)
+  if (isDynamoConfigured()) {
+    const now = Date.now()
+    const window = Math.floor(now / loginWindowMs)
+    try {
+      await getDynamoDocumentClient().send(new UpdateCommand({
+        TableName: getDynamoTableName(),
+        Key: loginAttemptKey(ip, window),
+        UpdateExpression: 'SET #expiresAt = :expiresAt ADD #attempts :one',
+        ConditionExpression: 'attribute_not_exists(#attempts) OR #attempts < :limit',
+        ExpressionAttributeNames: {
+          '#attempts': 'attempts',
+          '#expiresAt': 'expiresAt',
+        },
+        ExpressionAttributeValues: {
+          ':expiresAt': Math.floor(((window + 1) * loginWindowMs) / 1000),
+          ':one': 1,
+          ':limit': loginAttemptLimit,
+        },
+      }))
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ConditionalCheckFailedException') return
+      throw error
+    }
+    return
+  }
   const attempt = loginAttempts.get(ip)
   if (attempt) attempt.count += 1
 }
 
-export function clearLoginFailures(event: H3Event) {
-  const ip = event.node.req.socket.remoteAddress || 'unknown'
+export async function clearLoginFailures(event: H3Event) {
+  const ip = getClientAddress(event)
+  if (isDynamoConfigured()) {
+    const window = Math.floor(Date.now() / loginWindowMs)
+    await getDynamoDocumentClient().send(new DeleteCommand({
+      TableName: getDynamoTableName(),
+      Key: loginAttemptKey(ip, window),
+    }))
+    return
+  }
   loginAttempts.delete(ip)
+}
+
+function loginAttemptKey(ip: string, window: number) {
+  const secret = getAuthConfig().secret
+  const addressHash = createHmac('sha256', secret).update(ip).digest('hex')
+  return {
+    pk: `LOGIN#${addressHash}`,
+    sk: `WINDOW#${window}`,
+  }
+}
+
+function getClientAddress(event: H3Event) {
+  return getRequestHeader(event, 'x-forwarded-for')?.split(',')[0]?.trim()
+    || event.node.req.socket?.remoteAddress
+    || 'unknown'
 }
