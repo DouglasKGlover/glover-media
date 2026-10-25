@@ -54,18 +54,20 @@ export default defineEventHandler(async (event) => {
     if (!body.gilWatched) updates.gilWouldWatchAgain = null
   }
   if (body.dougWouldWatchAgain !== undefined) {
-    if ((body.dougWouldWatchAgain !== null && typeof body.dougWouldWatchAgain !== 'boolean')
-      || (body.dougWouldWatchAgain !== null && body.dougWatched === false)) {
+    if (body.dougWouldWatchAgain !== null && typeof body.dougWouldWatchAgain !== 'boolean') {
       throw createError({ statusCode: 400, statusMessage: 'Doug would watch again must be yes, no, or not selected' })
     }
-    updates.dougWouldWatchAgain = body.dougWouldWatchAgain
+    if (body.dougWatched !== false) {
+      updates.dougWouldWatchAgain = body.dougWouldWatchAgain
+    }
   }
   if (body.gilWouldWatchAgain !== undefined) {
-    if ((body.gilWouldWatchAgain !== null && typeof body.gilWouldWatchAgain !== 'boolean')
-      || (body.gilWouldWatchAgain !== null && body.gilWatched === false)) {
+    if (body.gilWouldWatchAgain !== null && typeof body.gilWouldWatchAgain !== 'boolean') {
       throw createError({ statusCode: 400, statusMessage: 'Gil would watch again must be yes, no, or not selected' })
     }
-    updates.gilWouldWatchAgain = body.gilWouldWatchAgain
+    if (body.gilWatched !== false) {
+      updates.gilWouldWatchAgain = body.gilWouldWatchAgain
+    }
   }
   if (body.dougRating !== undefined) {
     if (body.dougRating !== null && (!Number.isInteger(body.dougRating) || body.dougRating < 1 || body.dougRating > 10)) {
