@@ -24,6 +24,10 @@ const availableLetters = computed(() => [...new Set(
     .filter(letter => /^[A-Z]$/.test(letter)),
 )].sort())
 
+const availableFormats = computed(() => movieFormats.filter(
+  value => movies.value.some(movie => movie.format === value),
+))
+
 const availableGenres = computed(() => {
   const genres = new Map<string, string>()
   for (const movie of movies.value) {
@@ -85,24 +89,13 @@ const filteredMovies = computed(() => {
         <kbd>/</kbd>
       </label>
       <div class="filter-row">
-        <button
-          class="filter-chip"
-          :class="{ selected: !format }"
-          :aria-pressed="!format"
-          @click="format = ''"
-        >
-          All formats
-        </button>
-        <button
-          v-for="value in movieFormats"
-          :key="value"
-          class="filter-chip"
-          :class="{ selected: format === value }"
-          :aria-pressed="format === value"
-          @click="format = format === value ? '' : value"
-        >
-          {{ value }}
-        </button>
+        <label class="select-control">
+          <span class="sr-only">Filter by format</span>
+          <select v-model="format">
+            <option value="">Any format</option>
+            <option v-for="value in availableFormats" :key="value" :value="value">{{ value }}</option>
+          </select>
+        </label>
         <label class="select-control">
           <span class="sr-only">Filter by who watched</span>
           <select v-model="watched">

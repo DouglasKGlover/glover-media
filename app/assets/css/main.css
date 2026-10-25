@@ -197,7 +197,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-radius: 4px;
   font-size: 12px;
 }
-.select-control select { width: auto; min-width: 132px; cursor: pointer; }
+.select-control select { width: auto; min-width: 132px; padding-right: 30px; cursor: pointer; }
 .sort-control { margin-left: auto; }
 .collection-results { display: flex; flex-direction: column; gap: 20px; }
 .results-label { display: flex; align-items: baseline; gap: 12px; }
