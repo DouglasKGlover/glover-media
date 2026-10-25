@@ -261,7 +261,6 @@ function close() {
             <label v-if="dougWatched" class="field-label">
               <span>
                 <strong>Doug would watch again</strong>
-                <small>Doug would watch this title again.</small>
               </span>
               <select v-model="dougWouldWatchAgain">
                 <option :value="null">Not selected</option>
@@ -272,7 +271,6 @@ function close() {
             <label v-if="gilWatched" class="field-label">
               <span>
                 <strong>Gil would watch again</strong>
-                <small>Gil would watch this title again.</small>
               </span>
               <select v-model="gilWouldWatchAgain">
                 <option :value="null">Not selected</option>
