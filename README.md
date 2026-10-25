@@ -32,11 +32,11 @@ You need an AWS account configured for the AWS CLI in `us-east-1` and the AWS SA
 
    ```sh
    npm run build:lambda
-   sam build --use-container --template-file template.yaml
-   sam deploy --guided --template-file .aws-sam/build/template.yaml
+   sam build --template-file template.yaml
+   sam deploy --template-file template.yaml
    ```
 
-   Use region `us-east-1`, stack name `glover-media`, and enter the owner username, password hash, signing secret, TMDB key, and domain when prompted. `AuthPasswordHash`, `AuthSecret`, and `TmdbApiKey` are CloudFormation `NoEcho` parameters. **Do not save guided parameter values into `samconfig.toml` or commit them.** You may initially leave the certificate ARN empty to use the CloudFront hostname while setting up the domain.
+   Use region `us-east-1` and stack name `glover-media`. Enter the owner username, password hash, signing secret, TMDB key, and domain when prompted. `AuthPasswordHash`, `AuthSecret`, and `TmdbApiKey` are CloudFormation `NoEcho` parameters. **Do not save secret parameter values into `samconfig.toml` or commit them.** You may initially leave the certificate ARN empty to use the CloudFront hostname while setting up the domain.
 
 3. Start the initial static-site publish from the stack output:
 
@@ -50,7 +50,14 @@ You need an AWS account configured for the AWS CLI in `us-east-1` and the AWS SA
 
 ## Updating and operating
 
-- For API or Lambda changes, run `npm run build:lambda`, `sam build --use-container`, and `sam deploy`. SAM uses the configured AWS CLI credentials and selected region.
+- For API or Lambda changes, run these commands from the repository root. SAM uses the configured AWS CLI credentials and selected region:
+
+  ```sh
+  npm run build:lambda
+  sam build --template-file template.yaml
+  sam deploy --template-file template.yaml
+  ```
+
 - The static publisher clones the repository's default branch. Commit and push frontend changes before starting a build. Catalog edits automatically start a build from the latest default-branch revision.
 - To manually regenerate the public pages, start the CodeBuild project again. The build needs the API to be available and reads the current catalog through its public GET endpoint.
 - The S3 bucket blocks public access; CloudFront uses Origin Access Control. API requests are not cached. Lambda sessions and login-attempt counters expire through DynamoDB TTL.
