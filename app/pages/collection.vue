@@ -8,6 +8,7 @@ useHead({ title: 'Glover Media - Collection' })
 const search = ref('')
 const format = ref('')
 const watched = ref('')
+const genre = ref('')
 const startingLetter = ref('')
 const sort = ref('title')
 const runtimeConfig = useRuntimeConfig()
@@ -23,6 +24,17 @@ const availableLetters = computed(() => [...new Set(
     .filter(letter => /^[A-Z]$/.test(letter)),
 )].sort())
 
+const availableGenres = computed(() => {
+  const genres = new Map<string, string>()
+  for (const movie of movies.value) {
+    for (const value of movie.genres) {
+      const name = value.trim()
+      if (name) genres.set(name.toLocaleLowerCase(), genres.get(name.toLocaleLowerCase()) || name)
+    }
+  }
+  return [...genres.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+})
+
 const filteredMovies = computed(() => {
   const term = search.value.trim().toLowerCase()
   const results = movies.value.filter((movie) => {
@@ -30,6 +42,7 @@ const filteredMovies = computed(() => {
     const firstLetter = movie.title.trim().normalize('NFD').replace(/\p{Diacritic}/gu, '').charAt(0).toUpperCase()
     const matchesStartingLetter = !startingLetter.value || firstLetter === startingLetter.value
     const matchesFormat = !format.value || movie.format === format.value
+    const matchesGenre = !genre.value || movie.genres.some(value => value.trim().toLocaleLowerCase() === genre.value.toLocaleLowerCase())
     const matchesWatched = watched.value === 'doug'
       ? movie.dougWatched
       : watched.value === 'gil'
@@ -39,7 +52,7 @@ const filteredMovies = computed(() => {
           : watched.value === 'neither'
             ? !movie.dougWatched && !movie.gilWatched
             : true
-    return matchesSearch && matchesStartingLetter && matchesFormat && matchesWatched
+    return matchesSearch && matchesStartingLetter && matchesFormat && matchesGenre && matchesWatched
   })
 
   return results.sort((a, b) => {
@@ -101,6 +114,13 @@ const filteredMovies = computed(() => {
           </select>
         </label>
         <label class="select-control">
+          <span class="sr-only">Filter by genre</span>
+          <select v-model="genre">
+            <option value="">Any genre</option>
+            <option v-for="value in availableGenres" :key="value" :value="value">{{ value }}</option>
+          </select>
+        </label>
+        <label class="select-control">
           <span class="sr-only">Filter by alpha</span>
           <select v-model="startingLetter">
             <option value="">Alpha Filter</option>
@@ -133,7 +153,7 @@ const filteredMovies = computed(() => {
         <span class="empty-mark" aria-hidden="true">✳</span>
         <h3>{{ movies.length ? 'NO MATCHES.' : 'NOTHING YET.' }}</h3>
         <p>{{ movies.length ? 'No titles match these filters.' : 'My collection is empty.' }}</p>
-        <button v-if="movies.length" class="button button-secondary" @click="search = ''; format = ''; watched = ''; startingLetter = ''">
+        <button v-if="movies.length" class="button button-secondary" @click="search = ''; format = ''; watched = ''; genre = ''; startingLetter = ''">
           Clear filters
         </button>
       </div>
