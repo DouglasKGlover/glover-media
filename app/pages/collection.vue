@@ -8,7 +8,8 @@ useHead({ title: 'Glover Media - Collection' })
 const search = ref('')
 const format = ref('')
 const watched = ref('')
-const sort = ref('recent')
+const startingLetter = ref('')
+const sort = ref('title')
 const runtimeConfig = useRuntimeConfig()
 const { data: movies, pending } = await useFetch<Movie[]>('/api/movies', {
   key: 'collection-movies',
@@ -16,10 +17,18 @@ const { data: movies, pending } = await useFetch<Movie[]>('/api/movies', {
   baseURL: import.meta.server ? runtimeConfig.apiBaseUrl : undefined,
 })
 
+const availableLetters = computed(() => [...new Set(
+  movies.value
+    .map(movie => movie.title.trim().normalize('NFD').replace(/\p{Diacritic}/gu, '').charAt(0).toUpperCase())
+    .filter(letter => /^[A-Z]$/.test(letter)),
+)].sort())
+
 const filteredMovies = computed(() => {
   const term = search.value.trim().toLowerCase()
   const results = movies.value.filter((movie) => {
     const matchesSearch = !term || movie.title.toLowerCase().includes(term)
+    const firstLetter = movie.title.trim().normalize('NFD').replace(/\p{Diacritic}/gu, '').charAt(0).toUpperCase()
+    const matchesStartingLetter = !startingLetter.value || firstLetter === startingLetter.value
     const matchesFormat = !format.value || movie.format === format.value
     const matchesWatched = watched.value === 'doug'
       ? movie.dougWatched
@@ -30,10 +39,11 @@ const filteredMovies = computed(() => {
           : watched.value === 'neither'
             ? !movie.dougWatched && !movie.gilWatched
             : true
-    return matchesSearch && matchesFormat && matchesWatched
+    return matchesSearch && matchesStartingLetter && matchesFormat && matchesWatched
   })
 
   return results.sort((a, b) => {
+    if (sort.value === 'title') return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
     if (sort.value === 'year') return (b.releaseYear ?? 0) - (a.releaseYear ?? 0)
     if (sort.value === 'doug-rating') return (b.dougRating ?? 0) - (a.dougRating ?? 0)
     if (sort.value === 'gil-rating') return (b.gilRating ?? 0) - (a.gilRating ?? 0)
@@ -90,9 +100,17 @@ const filteredMovies = computed(() => {
             <option value="neither">Neither watched</option>
           </select>
         </label>
+        <label class="select-control">
+          <span class="sr-only">Filter by alpha</span>
+          <select v-model="startingLetter">
+            <option value="">Alpha Filter</option>
+            <option v-for="letter in availableLetters" :key="letter" :value="letter">{{ letter }}</option>
+          </select>
+        </label>
         <label class="select-control sort-control">
           <span class="sr-only">Sort collection</span>
           <select v-model="sort">
+            <option value="title">Title (A–Z)</option>
             <option value="recent">Recently added</option>
             <option value="year">Release year</option>
             <option value="doug-rating">Doug rating</option>
@@ -115,7 +133,7 @@ const filteredMovies = computed(() => {
         <span class="empty-mark" aria-hidden="true">✳</span>
         <h3>{{ movies.length ? 'NO MATCHES.' : 'NOTHING YET.' }}</h3>
         <p>{{ movies.length ? 'No titles match these filters.' : 'My collection is empty.' }}</p>
-        <button v-if="movies.length" class="button button-secondary" @click="search = ''; format = ''; watched = ''">
+        <button v-if="movies.length" class="button button-secondary" @click="search = ''; format = ''; watched = ''; startingLetter = ''">
           Clear filters
         </button>
       </div>

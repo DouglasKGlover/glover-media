@@ -8,8 +8,8 @@ interface MovieUpdateBody {
   edition?: string | null
   dougWatched?: boolean
   gilWatched?: boolean
-  dougWouldWatchAgain?: boolean
-  gilWouldWatchAgain?: boolean
+  dougWouldWatchAgain?: boolean | null
+  gilWouldWatchAgain?: boolean | null
   dougRating?: number | null
   gilRating?: number | null
   notes?: string | null
@@ -44,26 +44,26 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: 'Doug watched must be a boolean' })
     }
     updates.dougWatched = body.dougWatched
-    if (!body.dougWatched) updates.dougWouldWatchAgain = false
+    if (!body.dougWatched) updates.dougWouldWatchAgain = null
   }
   if (body.gilWatched !== undefined) {
     if (typeof body.gilWatched !== 'boolean') {
       throw createError({ statusCode: 400, statusMessage: 'Gil watched must be a boolean' })
     }
     updates.gilWatched = body.gilWatched
-    if (!body.gilWatched) updates.gilWouldWatchAgain = false
+    if (!body.gilWatched) updates.gilWouldWatchAgain = null
   }
   if (body.dougWouldWatchAgain !== undefined) {
-    if (typeof body.dougWouldWatchAgain !== 'boolean'
-      || (body.dougWouldWatchAgain && body.dougWatched === false)) {
-      throw createError({ statusCode: 400, statusMessage: 'Doug would watch again must be a boolean' })
+    if ((body.dougWouldWatchAgain !== null && typeof body.dougWouldWatchAgain !== 'boolean')
+      || (body.dougWouldWatchAgain !== null && body.dougWatched === false)) {
+      throw createError({ statusCode: 400, statusMessage: 'Doug would watch again must be yes, no, or not selected' })
     }
     updates.dougWouldWatchAgain = body.dougWouldWatchAgain
   }
   if (body.gilWouldWatchAgain !== undefined) {
-    if (typeof body.gilWouldWatchAgain !== 'boolean'
-      || (body.gilWouldWatchAgain && body.gilWatched === false)) {
-      throw createError({ statusCode: 400, statusMessage: 'Gil would watch again must be a boolean' })
+    if ((body.gilWouldWatchAgain !== null && typeof body.gilWouldWatchAgain !== 'boolean')
+      || (body.gilWouldWatchAgain !== null && body.gilWatched === false)) {
+      throw createError({ statusCode: 400, statusMessage: 'Gil would watch again must be yes, no, or not selected' })
     }
     updates.gilWouldWatchAgain = body.gilWouldWatchAgain
   }

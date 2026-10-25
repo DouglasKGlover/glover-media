@@ -26,8 +26,8 @@ const format = ref<MovieFormat>('Blu-ray')
 const edition = ref('')
 const dougWatched = ref(false)
 const gilWatched = ref(false)
-const dougWouldWatchAgain = ref(false)
-const gilWouldWatchAgain = ref(false)
+const dougWouldWatchAgain = ref<boolean | null>(null)
+const gilWouldWatchAgain = ref<boolean | null>(null)
 const dougRating = ref<number | ''>('')
 const gilRating = ref<number | ''>('')
 const notes = ref('')
@@ -50,12 +50,12 @@ watch(movie, (value) => {
 
 function updateDougWatched(watched: boolean) {
   dougWatched.value = watched
-  if (!watched) dougWouldWatchAgain.value = false
+  if (!watched) dougWouldWatchAgain.value = null
 }
 
 function updateGilWatched(watched: boolean) {
   gilWatched.value = watched
-  if (!watched) gilWouldWatchAgain.value = false
+  if (!watched) gilWouldWatchAgain.value = null
 }
 
 async function saveChanges() {
@@ -126,26 +126,28 @@ async function removeMovie() {
           >
           <div v-else class="poster-placeholder"><span>{{ movie.title }}</span></div>
         </div>
-        <p class="eyebrow">ABOUT THE FILM</p>
-        <div class="film-facts">
-          <div>
+        <p class="eyebrow">{{ movie.mediaType === 'tv' ? 'ABOUT THE SHOW' : 'ABOUT THE FILM' }}</p>
+        <div v-if="movie.releaseYear || movie.runtime != null || movie.genres.length" class="film-facts">
+          <div v-if="movie.releaseYear">
             <span>RELEASE YEAR</span>
-            <strong>{{ movie.releaseYear || 'Unknown' }}</strong>
+            <strong>{{ movie.releaseYear }}</strong>
           </div>
-          <div>
-            <span>RUNTIME</span>
-            <strong>{{ movie.runtime ? `${movie.runtime} minutes` : 'Not listed' }}</strong>
+          <div v-if="movie.runtime != null">
+            <span>{{ movie.mediaType === 'tv' ? 'AVG. EPISODE LENGTH' : 'RUNTIME' }}</span>
+            <strong>{{ movie.runtime }} minutes</strong>
           </div>
-          <div>
+          <div v-if="movie.genres.length">
             <span>GENRES</span>
-            <strong>{{ movie.genres.length ? movie.genres.join(' · ') : 'Not listed' }}</strong>
+            <strong>{{ movie.genres.join(' · ') }}</strong>
           </div>
         </div>
       </aside>
 
       <section class="film-details">
         <div class="film-heading">
-          <p class="eyebrow">{{ movie.mediaType === 'tv' ? 'TV SHOW' : 'FILM' }} / {{ movie.releaseYear || 'YEAR UNKNOWN' }}</p>
+          <p class="eyebrow">
+            {{ movie.mediaType === 'tv' ? 'TV SHOW' : 'FILM' }}<span v-if="movie.releaseYear"> / {{ movie.releaseYear }}</span>
+          </p>
           <h1>{{ movie.title }}</h1>
           <p v-if="movie.overview" class="film-overview">{{ movie.overview }}</p>
         </div>
@@ -183,19 +185,27 @@ async function removeMovie() {
               </span>
               <input :checked="gilWatched" type="checkbox" @change="updateGilWatched(!gilWatched)">
             </label>
-            <label v-if="dougWatched" class="field-label watched-toggle">
+            <label v-if="dougWatched" class="field-label">
               <span>
                 <strong>Doug would watch again</strong>
                 <small>Doug would watch this title again.</small>
               </span>
-              <input v-model="dougWouldWatchAgain" type="checkbox">
+              <select v-model="dougWouldWatchAgain">
+                <option :value="null">Not selected</option>
+                <option :value="true">Yes</option>
+                <option :value="false">No</option>
+              </select>
             </label>
-            <label v-if="gilWatched" class="field-label watched-toggle">
+            <label v-if="gilWatched" class="field-label">
               <span>
                 <strong>Gil would watch again</strong>
                 <small>Gil would watch this title again.</small>
               </span>
-              <input v-model="gilWouldWatchAgain" type="checkbox">
+              <select v-model="gilWouldWatchAgain">
+                <option :value="null">Not selected</option>
+                <option :value="true">Yes</option>
+                <option :value="false">No</option>
+              </select>
             </label>
             <label v-if="dougWatched" class="field-label">
               Doug rating
@@ -233,14 +243,14 @@ async function removeMovie() {
             <span class="format-badge">{{ movie.format }}</span>
           </div>
           <dl class="public-copy-details">
-            <div><dt>EDITION</dt><dd>{{ movie.edition || 'Not specified' }}</dd></div>
-            <div class="personal-details-divider" role="separator" aria-label="Personal details" />
+            <div v-if="movie.edition"><dt>EDITION</dt><dd>{{ movie.edition }}</dd></div>
+            <div v-if="movie.edition" class="personal-details-divider" role="separator" aria-label="Personal details" />
             <div><dt>DOUG WATCHED</dt><dd>{{ movie.dougWatched ? 'Watched' : 'Not watched' }}</dd></div>
             <div><dt>GIL WATCHED</dt><dd>{{ movie.gilWatched ? 'Watched' : 'Not watched' }}</dd></div>
-            <div v-if="movie.dougWatched"><dt>DOUG WOULD WATCH AGAIN</dt><dd>{{ movie.dougWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
-            <div v-if="movie.gilWatched"><dt>GIL WOULD WATCH AGAIN</dt><dd>{{ movie.gilWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
-            <div v-if="movie.dougWatched"><dt>DOUG RATING</dt><dd>{{ movie.dougRating ? `${movie.dougRating} / 10` : 'Not rated' }}</dd></div>
-            <div v-if="movie.gilWatched"><dt>GIL RATING</dt><dd>{{ movie.gilRating ? `${movie.gilRating} / 10` : 'Not rated' }}</dd></div>
+            <div v-if="movie.dougWatched && movie.dougWouldWatchAgain != null"><dt>DOUG WOULD WATCH AGAIN</dt><dd>{{ movie.dougWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
+            <div v-if="movie.gilWatched && movie.gilWouldWatchAgain != null"><dt>GIL WOULD WATCH AGAIN</dt><dd>{{ movie.gilWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
+            <div v-if="movie.dougWatched && movie.dougRating != null"><dt>DOUG RATING</dt><dd>{{ movie.dougRating }} / 10</dd></div>
+            <div v-if="movie.gilWatched && movie.gilRating != null"><dt>GIL RATING</dt><dd>{{ movie.gilRating }} / 10</dd></div>
             <div v-if="movie.notes" class="public-notes"><dt>NOTES</dt><dd>{{ movie.notes }}</dd></div>
           </dl>
         </section>

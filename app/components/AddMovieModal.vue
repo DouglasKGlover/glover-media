@@ -17,8 +17,8 @@ const format = ref<MovieFormat>('Blu-ray')
 const edition = ref('')
 const dougWatched = ref(false)
 const gilWatched = ref(false)
-const dougWouldWatchAgain = ref(false)
-const gilWouldWatchAgain = ref(false)
+const dougWouldWatchAgain = ref<boolean | null>(null)
+const gilWouldWatchAgain = ref<boolean | null>(null)
 const dougRating = ref<number | ''>('')
 const gilRating = ref<number | ''>('')
 const notes = ref('')
@@ -30,12 +30,12 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 function updateDougWatched(watched: boolean) {
   dougWatched.value = watched
-  if (!watched) dougWouldWatchAgain.value = false
+  if (!watched) dougWouldWatchAgain.value = null
 }
 
 function updateGilWatched(watched: boolean) {
   gilWatched.value = watched
-  if (!watched) gilWouldWatchAgain.value = false
+  if (!watched) gilWouldWatchAgain.value = null
 }
 
 watch(() => props.open, (isOpen) => {
@@ -45,8 +45,8 @@ watch(() => props.open, (isOpen) => {
     selected.value = null
     dougWatched.value = false
     gilWatched.value = false
-    dougWouldWatchAgain.value = false
-    gilWouldWatchAgain.value = false
+    dougWouldWatchAgain.value = null
+    gilWouldWatchAgain.value = null
     dougRating.value = ''
     gilRating.value = ''
     errorMessage.value = ''
@@ -203,7 +203,7 @@ function close() {
               <span v-else class="result-placeholder">{{ movie.title.slice(0, 1) }}</span>
               <span class="result-copy">
                 <strong>{{ movie.title }}</strong>
-                <span>{{ movie.release_date?.slice(0, 4) || 'Release year unknown' }}</span>
+                <span v-if="movie.release_date">{{ movie.release_date.slice(0, 4) }}</span>
               </span>
               <span class="result-arrow">›</span>
             </button>
@@ -223,7 +223,12 @@ function close() {
             <span v-else class="result-placeholder">{{ selected.title.slice(0, 1) }}</span>
             <div>
               <h3>{{ selected.title }}</h3>
-              <p>{{ selected.release_date?.slice(0, 4) || 'Release year unknown' }}<span v-if="selected.runtime"> · {{ selected.runtime }} min</span></p>
+              <p v-if="selected.release_date || selected.runtime">
+                <span v-if="selected.release_date">{{ selected.release_date.slice(0, 4) }}</span>
+                <span v-if="selected.runtime">
+                  {{ selected.release_date ? ' · ' : '' }}{{ selected.mediaType === 'tv' ? 'Avg. episode: ' : '' }}{{ selected.runtime }} min
+                </span>
+              </p>
             </div>
             <button class="text-button" @click="selected = null">Change</button>
           </div>
@@ -253,19 +258,27 @@ function close() {
               </span>
               <input :checked="gilWatched" type="checkbox" @change="updateGilWatched(!gilWatched)">
             </label>
-            <label v-if="dougWatched" class="field-label watched-toggle">
+            <label v-if="dougWatched" class="field-label">
               <span>
                 <strong>Doug would watch again</strong>
                 <small>Doug would watch this title again.</small>
               </span>
-              <input v-model="dougWouldWatchAgain" type="checkbox">
+              <select v-model="dougWouldWatchAgain">
+                <option :value="null">Not selected</option>
+                <option :value="true">Yes</option>
+                <option :value="false">No</option>
+              </select>
             </label>
-            <label v-if="gilWatched" class="field-label watched-toggle">
+            <label v-if="gilWatched" class="field-label">
               <span>
                 <strong>Gil would watch again</strong>
                 <small>Gil would watch this title again.</small>
               </span>
-              <input v-model="gilWouldWatchAgain" type="checkbox">
+              <select v-model="gilWouldWatchAgain">
+                <option :value="null">Not selected</option>
+                <option :value="true">Yes</option>
+                <option :value="false">No</option>
+              </select>
             </label>
             <label v-if="dougWatched" class="field-label">
               Doug rating

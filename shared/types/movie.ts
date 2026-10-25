@@ -17,8 +17,8 @@ export interface Movie {
   edition: string | null
   dougWatched: boolean
   gilWatched: boolean
-  dougWouldWatchAgain: boolean
-  gilWouldWatchAgain: boolean
+  dougWouldWatchAgain: boolean | null
+  gilWouldWatchAgain: boolean | null
   dougRating: number | null
   gilRating: number | null
   notes: string | null

@@ -16,8 +16,8 @@ interface NewMovieBody {
   edition?: string | null
   dougWatched?: boolean
   gilWatched?: boolean
-  dougWouldWatchAgain?: boolean
-  gilWouldWatchAgain?: boolean
+  dougWouldWatchAgain?: boolean | null
+  gilWouldWatchAgain?: boolean | null
   dougRating?: number | null
   gilRating?: number | null
   notes?: string | null
@@ -30,10 +30,10 @@ export default defineEventHandler(async (event) => {
     || (body.mediaType !== undefined && body.mediaType !== 'movie' && body.mediaType !== 'tv')
     || (body.dougWatched !== undefined && typeof body.dougWatched !== 'boolean')
     || (body.gilWatched !== undefined && typeof body.gilWatched !== 'boolean')
-    || (body.dougWouldWatchAgain !== undefined && typeof body.dougWouldWatchAgain !== 'boolean')
-    || (body.gilWouldWatchAgain !== undefined && typeof body.gilWouldWatchAgain !== 'boolean')
-    || (body.dougWouldWatchAgain && !body.dougWatched)
-    || (body.gilWouldWatchAgain && !body.gilWatched)
+    || (body.dougWouldWatchAgain != null && typeof body.dougWouldWatchAgain !== 'boolean')
+    || (body.gilWouldWatchAgain != null && typeof body.gilWouldWatchAgain !== 'boolean')
+    || (body.dougWouldWatchAgain != null && !body.dougWatched)
+    || (body.gilWouldWatchAgain != null && !body.gilWatched)
     || !movieFormats.includes(body.format)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid movie details' })
   }
@@ -57,8 +57,8 @@ export default defineEventHandler(async (event) => {
     edition: body.edition?.trim() || null,
     dougWatched: body.dougWatched ?? false,
     gilWatched: body.gilWatched ?? false,
-    dougWouldWatchAgain: body.dougWouldWatchAgain ?? false,
-    gilWouldWatchAgain: body.gilWouldWatchAgain ?? false,
+    dougWouldWatchAgain: body.dougWouldWatchAgain ?? null,
+    gilWouldWatchAgain: body.gilWouldWatchAgain ?? null,
     dougRating: body.dougRating ?? null,
     gilRating: body.gilRating ?? null,
     notes: body.notes?.trim() || null,

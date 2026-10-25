@@ -22,10 +22,13 @@ defineProps<{ movie: Movie }>()
     </div>
     <div class="movie-card-info">
       <h3>{{ movie.title }}</h3>
-      <p class="movie-meta">
-        {{ movie.mediaType === 'tv' ? 'TV' : movie.releaseYear || 'Year unknown' }}
-        <span v-if="movie.mediaType === 'tv'">{{ movie.releaseYear || 'Year unknown' }}</span>
-        <span v-if="movie.genres.length">· {{ movie.genres.slice(0, 2).join(' · ') }}</span>
+      <p v-if="movie.mediaType === 'tv' || movie.releaseYear || movie.genres.length" class="movie-meta">
+        <span v-if="movie.mediaType === 'tv'">TV</span>
+        <span v-else-if="movie.releaseYear">{{ movie.releaseYear }}</span>
+        <span v-if="movie.mediaType === 'tv' && movie.releaseYear">{{ movie.releaseYear }}</span>
+        <span v-if="movie.genres.length">
+          {{ movie.mediaType === 'tv' || movie.releaseYear ? '· ' : '' }}{{ movie.genres.slice(0, 2).join(' · ') }}
+        </span>
       </p>
       <div class="movie-ownership">
         <span class="format-badge">{{ movie.format }}</span>
