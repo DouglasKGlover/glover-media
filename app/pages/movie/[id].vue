@@ -243,12 +243,30 @@ async function removeMovie() {
           <dl class="public-copy-details">
             <div v-if="movie.edition"><dt>EDITION</dt><dd>{{ movie.edition }}</dd></div>
             <div v-if="movie.edition" class="personal-details-divider" role="separator" aria-label="Personal details" />
-            <div><dt>DOUG WATCHED</dt><dd>{{ movie.dougWatched ? 'Watched' : 'Not watched' }}</dd></div>
-            <div><dt>GIL WATCHED</dt><dd>{{ movie.gilWatched ? 'Watched' : 'Not watched' }}</dd></div>
-            <div v-if="movie.dougWatched && movie.dougWouldWatchAgain != null"><dt>DOUG WOULD WATCH AGAIN</dt><dd>{{ movie.dougWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
-            <div v-if="movie.gilWatched && movie.gilWouldWatchAgain != null"><dt>GIL WOULD WATCH AGAIN</dt><dd>{{ movie.gilWouldWatchAgain ? 'Yes' : 'No' }}</dd></div>
-            <div v-if="movie.dougWatched && movie.dougRating != null"><dt>DOUG RATING</dt><dd>{{ movie.dougRating }} / 10</dd></div>
-            <div v-if="movie.gilWatched && movie.gilRating != null"><dt>GIL RATING</dt><dd>{{ movie.gilRating }} / 10</dd></div>
+            <div class="public-copy-person">
+              <dt>DOUG WATCHED</dt>
+              <dd>{{ movie.dougWatched ? 'Watched' : 'Not watched' }}</dd>
+              <template v-if="movie.dougWatched && movie.dougWouldWatchAgain != null">
+                <dt>DOUG WOULD WATCH AGAIN</dt>
+                <dd>{{ movie.dougWouldWatchAgain ? 'Yes' : 'No' }}</dd>
+              </template>
+              <template v-if="movie.dougWatched && movie.dougRating != null">
+                <dt>DOUG RATING</dt>
+                <dd>{{ movie.dougRating }} / 10</dd>
+              </template>
+            </div>
+            <div class="public-copy-person">
+              <dt>GIL WATCHED</dt>
+              <dd>{{ movie.gilWatched ? 'Watched' : 'Not watched' }}</dd>
+              <template v-if="movie.gilWatched && movie.gilWouldWatchAgain != null">
+                <dt>GIL WOULD WATCH AGAIN</dt>
+                <dd>{{ movie.gilWouldWatchAgain ? 'Yes' : 'No' }}</dd>
+              </template>
+              <template v-if="movie.gilWatched && movie.gilRating != null">
+                <dt>GIL RATING</dt>
+                <dd>{{ movie.gilRating }} / 10</dd>
+              </template>
+            </div>
             <div v-if="movie.notes" class="public-notes"><dt>NOTES</dt><dd>{{ movie.notes }}</dd></div>
           </dl>
         </section>
